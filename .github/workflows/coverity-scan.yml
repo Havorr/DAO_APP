@@ -21,25 +21,33 @@ jobs:
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
           curl -fL \
             -X POST \
             --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
             https://scan.coverity.com/download/linux64 \
             -o coverity.tgz
 
+          rm -rf coverity
           mkdir coverity
           tar -xzf coverity.tgz -C coverity --strip 1
 
-      - name: Capture Python sources
-        run: |
-          set -e
-          ./coverity/bin/cov-capture-python \
-            --dir cov-int \
-            Aplikacja
+          echo "=== coverity/bin (first 200) ==="
+          ls -la coverity/bin | head -n 200
+          echo "=== search for python capture ==="
+          find coverity -maxdepth 3 -type f -name "*python*" | head -n 200
 
-      - name: Package capture
+      - name: Capture (Python via compileall)
         run: |
+          set -euo pipefail
+          rm -rf cov-int
+
+          ./coverity/bin/cov-build --dir cov-int \
+            python -m compileall -q Aplikacja
+
+          echo "=== cov-int check (top 200) ==="
+          find cov-int -maxdepth 3 -type f | head -n 200
+
           tar czf cov-int.tgz cov-int
 
       - name: Submit to Coverity Scan
@@ -49,5 +57,5 @@ jobs:
             --form email=${{ secrets.COVERITY_SCAN_EMAIL }} \
             --form file=@cov-int.tgz \
             --form version="$(git rev-parse HEAD)" \
-            --form description="Python capture via cov-capture-python" \
+            --form description="Python capture via cov-build + compileall" \
             "https://scan.coverity.com/builds?project=DAO_APP"
