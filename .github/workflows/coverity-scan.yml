@@ -38,11 +38,20 @@ jobs:
 
       - name: Run Coverity analysis
         run: |
+          set -euo pipefail
+
+          # znajdź cov-analyze gdziekolwiek w paczce
+          COV_ANALYZE="$(find ./coverity -type f -name cov-analyze -perm -u+x | head -n 1)"
+          if [ -z "${COV_ANALYZE}" ]; then
+            echo "cov-analyze not found. Listing coverity tree (top 2000 lines):"
+            find ./coverity -maxdepth 4 -type f | head -n 2000
+            exit 1
+          fi
+          echo "Using cov-analyze at: ${COV_ANALYZE}"
+
           ./coverity/bin/cov-build --dir cov-int echo "Coverity capture"
-          ./coverity/analysis/cov-analyze --dir cov-int --all
+          "${COV_ANALYZE}" --dir cov-int --all
           tar czf cov-int.tgz cov-int
-
-
 
       - name: Submit to Coverity Scan
         run: |
@@ -52,4 +61,4 @@ jobs:
             --form file=@cov-int.tgz \
             --form version="$(git rev-parse HEAD)" \
             --form description="GitHub Actions build" \
-            "https://scan.coverity.com/builds?project=${GITHUB_REPOSITORY}"
+            "https://scan.coverity.com/builds?project=DAO_APP"
