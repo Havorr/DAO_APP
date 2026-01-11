@@ -1,4 +1,4 @@
-name: Coverity Scan (Python)
+name: Coverity Scan (Python w/ native build)
 
 on:
   workflow_dispatch:
@@ -15,47 +15,55 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python -m pip install -U pip
+          # jeśli masz requirements:
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # jeśli budujesz paczkę:
+          pip install build setuptools wheel
 
       - name: Download Coverity
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
-          set -euo pipefail
-          curl -fL \
-            -X POST \
+          set -e
+          curl -fL -X POST \
             --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
             https://scan.coverity.com/download/linux64 \
             -o coverity.tgz
-
-          rm -rf coverity
-          mkdir coverity
+          mkdir -p coverity
           tar -xzf coverity.tgz -C coverity --strip 1
+          echo "$PWD/coverity/bin" >> $GITHUB_PATH
 
-          echo "=== coverity/bin (first 200) ==="
-          ls -la coverity/bin | head -n 200
-          echo "=== search for python capture ==="
-          find coverity -maxdepth 3 -type f -name "*python*" | head -n 200
-
-      - name: Capture (Python via compileall)
+      - name: Build with Coverity
         run: |
-          set -euo pipefail
-          rm -rf cov-int
+          set -e
+          # PRZYKŁADY builda — wybierz JEDEN, zgodny z repo:
 
-          ./coverity/bin/cov-build --dir cov-int \
-            python -m compileall -q Aplikacja
+          # 1) setuptools / extension:
+          # cov-build --dir cov-int python setup.py build
 
-          echo "=== cov-int check (top 200) ==="
-          find cov-int -maxdepth 3 -type f | head -n 200
+          # 2) PEP517 build (wheel/sdist):
+          cov-build --dir cov-int python -m build
 
-          tar czf cov-int.tgz cov-int
+          # 3) jeśli masz make/cmake (rzadziej w python-only):
+          # cov-build --dir cov-int make -j
 
-      - name: Submit to Coverity Scan
+      - name: Tar results
         run: |
-          curl -fL \
-            --form token=${{ secrets.COVERITY_SCAN_TOKEN }} \
-            --form email=${{ secrets.COVERITY_SCAN_EMAIL }} \
-            --form file=@cov-int.tgz \
-            --form version="$(git rev-parse HEAD)" \
-            --form description="Python capture via cov-build + compileall" \
-            "https://scan.coverity.com/builds?project=DAO_APP"
+          tar czf coverity-results.tgz cov-int
+
+      - name: Upload to Coverity Scan
+        env:
+          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        run: |
+          set -e
+          curl -fL -X POST https://scan.coverity.com/builds?project=DAO_APP \
+            --form token=${COVERITY_SCAN_TOKEN} \
+            --form email=${{ secrets.COVERITY_EMAIL }} \
+            --form file=@coverity-results.tgz \
+            --form version="github-${GITHUB_SHA}" \
+            --form description="CI Coverity Scan"
