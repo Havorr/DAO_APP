@@ -67,24 +67,29 @@ jobs:
           tar -czf cov-int.tgz cov-int
           ls -lh cov-int.tgz
 
-      - name: Upload to Coverity Scan
-        env:
-          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-          COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
-        run: |
-          set -euo pipefail
+- name: Upload to Coverity Scan
+  env:
+    COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+    COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+  run: |
+    set -euo pipefail
 
-          if [ -z "${COVERITY_SCAN_EMAIL:-}" ]; then
-            echo "ERROR: COVERITY_SCAN_EMAIL is empty. Add it as a repo secret."
-            exit 1
-          fi
+    if [ -z "${COVERITY_SCAN_EMAIL:-}" ]; then
+      echo "ERROR: COVERITY_SCAN_EMAIL is empty or not set"
+      exit 1
+    fi
 
-          cd "${PROJECT_DIR}/build"
+    echo "Uploading to Coverity Scan"
+    echo "Project: DAO_APP"
+    echo "Email: ${COVERITY_SCAN_EMAIL}"
 
-          curl -fL -X POST \
-            --form "token=${COVERITY_SCAN_TOKEN}" \
-            --form "email=${COVERITY_SCAN_EMAIL}" \
-            --form "file=@cov-int.tgz" \
-            --form "version=${BUILD_VERSION}" \
-            --form "description=${BUILD_DESCRIPTION}" \
-            https://scan.coverity.com/builds
+    cd A-hello-cmake/build
+
+    curl -v -fL -X POST \
+      --form "token=${COVERITY_SCAN_TOKEN}" \
+      --form "email=${COVERITY_SCAN_EMAIL}" \
+      --form "file=@cov-int.tgz" \
+      --form "version=gh-${GITHUB_RUN_NUMBER}" \
+      --form "description=GitHub Actions Coverity Scan" \
+      https://scan.coverity.com/builds
+
