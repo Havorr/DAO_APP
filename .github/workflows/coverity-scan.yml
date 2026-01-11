@@ -1,4 +1,4 @@
-name: Coverity Scan (stable)
+name: Coverity Scan (Python)
 
 on:
   workflow_dispatch:
@@ -17,42 +17,31 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download Coverity (with retry)
+      - name: Download Coverity
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
-          set -euo pipefail
-          mkdir -p coverity
+          set -e
+          curl -fL \
+            -X POST \
+            --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
+            https://scan.coverity.com/download/linux64 \
+            -o coverity.tgz
 
-          for i in 1 2 3; do
-            echo "Attempt $i"
-            curl -fL --retry 5 --retry-delay 10 \
-              -X POST \
-              --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
-              https://scan.coverity.com/download/linux64 \
-              -o coverity.tgz && break
-            sleep 10
-          done
-
+          mkdir coverity
           tar -xzf coverity.tgz -C coverity --strip 1
 
-      - name: Run Coverity build (Python)
+      - name: Capture Python sources
         run: |
-          set -euo pipefail
-
-          rm -rf cov-int
-
-          # Coverity MUST wrap a command
-          ./coverity/bin/cov-build \
+          set -e
+          ./coverity/bin/cov-capture-python \
             --dir cov-int \
-            python -m compileall Aplikacja
+            Aplikacja
 
-          echo "=== cov-int check ==="
-          ls -la cov-int
-          ls -la cov-int | grep build-log || true
-
+      - name: Package capture
+        run: |
           tar czf cov-int.tgz cov-int
-          
+
       - name: Submit to Coverity Scan
         run: |
           curl -fL \
@@ -60,5 +49,5 @@ jobs:
             --form email=${{ secrets.COVERITY_SCAN_EMAIL }} \
             --form file=@cov-int.tgz \
             --form version="$(git rev-parse HEAD)" \
-            --form description="Source upload only" \
+            --form description="Python capture via cov-capture-python" \
             "https://scan.coverity.com/builds?project=DAO_APP"
