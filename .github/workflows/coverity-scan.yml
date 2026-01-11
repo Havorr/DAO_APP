@@ -67,29 +67,28 @@ jobs:
           tar -czf cov-int.tgz cov-int
           ls -lh cov-int.tgz
 
-      - name: Upload to Coverity Scan
+      - name: Uploading to Coverity Scan
         env:
-            COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-            COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        COVERITY_PROJECT: DAO_APP
+        RESULT_TGZ: ${{ github.workspace }}/coverity-results.tgz
         run: |
-            set -euo pipefail
+          set -euo pipefail
 
-            if [ -z "${COVERITY_SCAN_EMAIL:-}" ]; then
-            echo "ERROR: COVERITY_SCAN_EMAIL is empty or not set"
-            exit 1
-            fi
+        # URL-encode nazwy projektu (ważne, jeśli jest np. owner/repo)
+           PROJECT_ENC=$(python - <<'PY'
+          import os, urllib.parse
+        print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))
+        PY
+    )
 
-            echo "Uploading to Coverity Scan"
-            echo "Project: DAO_APP"
-            echo "Email: ${COVERITY_SCAN_EMAIL}"
+    curl -fLsS \
+      --form token="${COVERITY_SCAN_TOKEN}" \
+      --form email="${COVERITY_SCAN_EMAIL}" \
+      --form file=@"${RESULT_TGZ}" \
+      --form version="${GITHUB_SHA}" \
+      --form description="GitHub Actions build ${GITHUB_RUN_NUMBER}" \
+      "https://scan.coverity.com/builds?project=${PROJECT_ENC}"
 
-            cd A-hello-cmake/build
-
-            curl -v -fL -X POST \
-            --form "token=${COVERITY_SCAN_TOKEN}" \
-            --form "email=${COVERITY_SCAN_EMAIL}" \
-            --form "file=@cov-int.tgz" \
-            --form "version=gh-${GITHUB_RUN_NUMBER}" \
-            --form "description=GitHub Actions Coverity Scan" \
-            https://scan.coverity.com/builds
 
