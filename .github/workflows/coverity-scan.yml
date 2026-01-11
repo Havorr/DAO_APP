@@ -28,7 +28,7 @@ jobs:
             echo "Attempt $i"
             curl -fL --retry 5 --retry-delay 10 \
               -X POST \
-              --data "token=${COVERITY_SCAN_TOKEN}&project=${GITHUB_REPOSITORY}" \
+              --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
               https://scan.coverity.com/download/linux64 \
               -o coverity.tgz && break
             sleep 10
