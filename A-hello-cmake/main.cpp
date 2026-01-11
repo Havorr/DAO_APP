@@ -8,3 +8,6 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+int* p = nullptr;
+*p = 1;
