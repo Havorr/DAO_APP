@@ -1,0 +1,26 @@
+name: Coverity Scan
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  coverity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Coverity Scan
+        uses: vapier/coverity-scan-action@v1
+        with:
+          project: "${{ github.repository }}"
+          token: "${{ secrets.COVERITY_SCAN_TOKEN }}"
+          email: "${{ secrets.COVERITY_SCAN_EMAIL }}"
+          build_language: "other"
+          command: "true"
