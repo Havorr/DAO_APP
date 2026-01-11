@@ -10,13 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Folder z Twoim projektem CMake
       PROJECT_DIR: A-hello-cmake
-
-      # MUSI być dokładnie taka sama nazwa projektu jak na scan.coverity.com
-      COVERITY_PROJECT: test_app
-
-      # Opcjonalnie: wersja/opis builda widoczny w Coverity
+      COVERITY_PROJECT: DAO_APP
       BUILD_VERSION: "1.0.${{ github.run_number }}"
       BUILD_DESCRIPTION: "GitHub Actions Coverity Scan"
 
@@ -35,21 +30,26 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [ -z "${COVERITY_SCAN_TOKEN:-}" ]; then
+            echo "ERROR: COVERITY_SCAN_TOKEN is empty. Check repo secrets or workflow context."
+            exit 1
+          fi
+
+          echo "Downloading Coverity tool for project: ${COVERITY_PROJECT}"
+
           curl -fL -X POST \
-            --data "token=${COVERITY_SCAN_TOKEN}&project=${COVERITY_PROJECT}" \
+            --data-urlencode "token=${COVERITY_SCAN_TOKEN}" \
+            --data-urlencode "project=${COVERITY_PROJECT}" \
             https://scan.coverity.com/download/linux64 \
             -o coverity.tgz
 
           mkdir -p coverity
           tar -xzf coverity.tgz -C coverity --strip 1
-
-          echo "Coverity tool downloaded."
           ls -la coverity/bin | head -n 50
 
       - name: Build with Coverity (capture)
         run: |
           set -euo pipefail
-
           cd "${PROJECT_DIR}"
           mkdir -p build
           cd build
@@ -63,7 +63,6 @@ jobs:
       - name: Pack results (cov-int)
         run: |
           set -euo pipefail
-
           cd "${PROJECT_DIR}/build"
           tar -czf cov-int.tgz cov-int
           ls -lh cov-int.tgz
@@ -74,6 +73,11 @@ jobs:
           COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
         run: |
           set -euo pipefail
+
+          if [ -z "${COVERITY_SCAN_EMAIL:-}" ]; then
+            echo "ERROR: COVERITY_SCAN_EMAIL is empty. Add it as a repo secret."
+            exit 1
+          fi
 
           cd "${PROJECT_DIR}/build"
 
