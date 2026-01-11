@@ -49,8 +49,9 @@ jobs:
           mkdir -p coverity
           tar -xzf coverity-tool.tgz -C coverity --strip 1
 
-          echo "Coverity tool downloaded:"
-          ls -la coverity/bin | head -n 50
+          echo "Coverity tool downloaded (first entries):"
+          ls -la coverity/bin | sed -n '1,50p'
+
 
       - name: Run Coverity capture (Python)
         run: |
