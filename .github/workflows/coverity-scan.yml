@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Ustaw nazwę projektu taką, jaką masz w Coverity Scan.
-      # Jeśli Coverity Scan ma projekt w formie owner/repo, ustaw:
+      # Jeśli Coverity Scan ma projekt jako owner/repo, ustaw to tak:
       # COVERITY_PROJECT: ${{ github.repository }}
       COVERITY_PROJECT: DAO_APP
 
@@ -24,7 +23,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (if requirements.txt exists)
+      - name: Install dependencies (optional)
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -58,15 +57,11 @@ jobs:
           set -euo pipefail
           export PATH="${GITHUB_WORKSPACE}/coverity/bin:$PATH"
 
-          # W projektach Pythona nie ma klasycznego "build".
-          # Najprostsze sensowne "capture" to kompilacja bytecode całego repo.
           rm -rf cov-int
           cov-build --dir cov-int python -m compileall -q .
 
-          echo "cov-int size:"
-          du -sh cov-int || true
-
           tar -czf coverity-results.tgz cov-int
+          ls -lah coverity-results.tgz
 
       - name: Upload to Coverity Scan
         env:
@@ -75,12 +70,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # URL-encode nazwy projektu (ważne, jeśli jest owner/repo)
-          PROJECT_ENC=$(python - <<'PY'
-import os, urllib.parse
-print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))
-PY
-          )
+          # URL-encode nazwy projektu (ważne jeśli np. owner/repo)
+          PROJECT_ENC="$(python -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))')"
 
           echo "Uploading to Coverity Scan"
           echo "Project: ${COVERITY_PROJECT}"
