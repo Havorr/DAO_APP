@@ -1,61 +1,34 @@
-name: Coverity Scan (Python - buildless capture)
+name: Python SAST (Ruff + Bandit + Semgrep)
 
 on:
-  workflow_dispatch:
   push:
     branches: ["main"]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  coverity:
+  sast:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Download Coverity
-        env:
-          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      - name: Install tools
         run: |
-          set -e
-          curl -fL -X POST \
-            --data "token=${COVERITY_SCAN_TOKEN}&project=DAO_APP" \
-            https://scan.coverity.com/download/linux64 \
-            -o coverity.tgz
-          mkdir -p coverity
-          tar -xzf coverity.tgz -C coverity --strip 1
-          echo "$PWD/coverity/bin" >> $GITHUB_PATH
+          python -m pip install -U pip
+          pip install ruff bandit semgrep
 
-      - name: Debug available Coverity tools
+      - name: Ruff (lint)
         run: |
-          set -e
-          ls -la coverity/bin | sed -n '1,200p'
-          cov-build --version || true
-          cov-capture --help | sed -n '1,80p'
+          ruff check .
 
-      - name: Capture Python sources (buildless capture)
+      - name: Bandit (security)
         run: |
-          set -e
-          rm -rf cov-int
-          # Buildless capture dla Pythona:
-          cov-capture --dir cov-int --source-dir . --language python
-          cov-analyze --dir cov-int --all
+          bandit -r . -x .venv,venv,tests -ll
 
-      - name: Package capture
-        run: tar czf coverity-results.tgz cov-int
-
-      - name: Upload to Coverity Scan
-        env:
-          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      - name: Semgrep (security rules)
         run: |
-          set -e
-          curl -fL -X POST "https://scan.coverity.com/builds?project=DAO_APP" \
-            --form token="${COVERITY_SCAN_TOKEN}" \
-            --form email="${{ secrets.COVERITY_EMAIL }}" \
-            --form file=@coverity-results.tgz \
-            --form version="github-${GITHUB_SHA}" \
-            --form description="Python buildless capture"
+          semgrep scan --config p/python --config p/security-audit .
