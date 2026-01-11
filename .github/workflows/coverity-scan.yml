@@ -45,7 +45,7 @@ jobs:
 
           mkdir -p coverity
           tar -xzf coverity.tgz -C coverity --strip 1
-          ls -la coverity/bin | head -n 50
+          ls -la coverity/bin
 
       - name: Build with Coverity (capture)
         run: |
