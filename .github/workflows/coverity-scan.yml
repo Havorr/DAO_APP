@@ -52,24 +52,38 @@ jobs:
           echo "Coverity tool downloaded (first entries):"
           ls -la "${RUNNER_TEMP}/coverity/bin" | sed -n '1,50p'
 
-      - name: Capture sources (filesystem capture for Python)
+      - name: Capture sources (Python)
         run: |
           set -euo pipefail
           export PATH="${RUNNER_TEMP}/coverity/bin:$PATH"
 
           rm -rf cov-int
+          mkdir -p cov-int
 
-          # Filesystem capture: łapie źródła (np. .py) bez "buildowania"
-          # UWAGA: capture robimy z katalogu repo, ale narzędzia Coverity są w RUNNER_TEMP,
-          # więc nie wpadną do skanowania.
-          cov-build --dir cov-int --fs-capture-search . true
+          echo "Checking available Coverity capture tools..."
+          ls -la "${RUNNER_TEMP}/coverity/bin" | sed -n '1,120p'
 
-          # Debug: pokaż, czy coś w ogóle zostało złapane
-          echo "Captured files count:"
+          if command -v cov-capture >/dev/null 2>&1; then
+            echo "Using cov-capture (preferred for script/source capture)"
+            # Złap tylko repo, bez śmieci
+            cov-capture --dir cov-int --source-dir . \
+              --exclude-dir .git --exclude-dir cov-int --exclude-dir coverity \
+              --exclude-dir .venv --exclude-dir venv --exclude-dir __pycache__ \
+              --exclude-dir build --exclude-dir dist \
+              --language python
+          else
+            echo "cov-capture not found. Falling back to compileall under cov-build (best-effort)."
+            cov-build --dir cov-int python -m compileall -q \
+              -x '(^|/)(coverity|cov-int|\.git|\.venv|venv|__pycache__|dist|build)(/|$)' \
+              .
+          fi
+
+          echo "cov-int summary:"
           find cov-int -maxdepth 3 -type f | wc -l || true
 
           tar -czf coverity-results.tgz cov-int
           ls -lah coverity-results.tgz
+
 
       - name: Upload to Coverity Scan
         env:
