@@ -36,12 +36,10 @@ jobs:
 
           tar -xzf coverity.tgz -C coverity --strip 1
 
-      - name: Run Coverity capture
+      - name: Prepare source archive
         run: |
-          set -euo pipefail
-          ./coverity/bin/cov-build --dir cov-int --fs-capture-search Aplikacja echo "Coverity capture"
-          tar czf cov-int.tgz cov-int
-
+          tar czf cov-int.tgz Aplikacja
+          
       - name: Submit to Coverity Scan
         run: |
           curl -fL \
@@ -49,5 +47,5 @@ jobs:
             --form email=${{ secrets.COVERITY_SCAN_EMAIL }} \
             --form file=@cov-int.tgz \
             --form version="$(git rev-parse HEAD)" \
-            --form description="GitHub Actions build" \
+            --form description="Source upload only" \
             "https://scan.coverity.com/builds?project=DAO_APP"
