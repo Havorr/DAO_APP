@@ -36,21 +36,10 @@ jobs:
 
           tar -xzf coverity.tgz -C coverity --strip 1
 
-      - name: Run Coverity analysis
+      - name: Run Coverity capture
         run: |
           set -euo pipefail
-
-          # znajdź cov-analyze gdziekolwiek w paczce
-          COV_ANALYZE="$(find ./coverity -type f -name cov-analyze -perm -u+x | head -n 1)"
-          if [ -z "${COV_ANALYZE}" ]; then
-            echo "cov-analyze not found. Listing coverity tree (top 2000 lines):"
-            find ./coverity -maxdepth 4 -type f | head -n 2000
-            exit 1
-          fi
-          echo "Using cov-analyze at: ${COV_ANALYZE}"
-
-          ./coverity/bin/cov-build --dir cov-int echo "Coverity capture"
-          "${COV_ANALYZE}" --dir cov-int --all
+          ./coverity/bin/cov-build --dir cov-int --fs-capture-search Aplikacja echo "Coverity capture"
           tar czf cov-int.tgz cov-int
 
       - name: Submit to Coverity Scan
