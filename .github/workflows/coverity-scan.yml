@@ -59,10 +59,15 @@ jobs:
           export PATH="${GITHUB_WORKSPACE}/coverity/bin:$PATH"
 
           rm -rf cov-int
-          cov-build --dir cov-int python -m compileall -q .
+
+          # Kompiluj repo, ale ignoruj foldery z narzędziami Coverity i artefakty
+          cov-build --dir cov-int python -m compileall -q \
+            -x '(^|/)(coverity|cov-int|\.git|\.venv|venv|__pycache__|dist|build)(/|$)' \
+            .
 
           tar -czf coverity-results.tgz cov-int
           ls -lah coverity-results.tgz
+
 
       - name: Upload to Coverity Scan
         env:
