@@ -38,9 +38,10 @@ jobs:
 
       - name: Run Coverity analysis
         run: |
-          ./coverity/bin/cov-build --dir cov-int --no-command
+          ./coverity/bin/cov-build --dir cov-int echo "Coverity capture"
           ./coverity/bin/cov-analyze --dir cov-int --all
           tar czf cov-int.tgz cov-int
+
 
       - name: Submit to Coverity Scan
         run: |
