@@ -1,3 +1,22 @@
+name: Coverity Scan (stable)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  coverity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Download Coverity (with retry)
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
@@ -16,3 +35,19 @@
           done
 
           tar -xzf coverity.tgz -C coverity --strip 1
+
+      - name: Run Coverity analysis
+        run: |
+          ./coverity/bin/cov-build --dir cov-int --no-command
+          ./coverity/bin/cov-analyze --dir cov-int --all
+          tar czf cov-int.tgz cov-int
+
+      - name: Submit to Coverity Scan
+        run: |
+          curl -fL \
+            --form token=${{ secrets.COVERITY_SCAN_TOKEN }} \
+            --form email=${{ secrets.COVERITY_SCAN_EMAIL }} \
+            --form file=@cov-int.tgz \
+            --form version="$(git rev-parse HEAD)" \
+            --form description="GitHub Actions build" \
+            "https://scan.coverity.com/builds?project=${GITHUB_REPOSITORY}"
