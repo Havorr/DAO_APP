@@ -18,21 +18,23 @@ jobs:
           python-version: '3.11'
 
       - name: Download Coverity (with retry)
+        env:
+          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p coverity
+
           for i in 1 2 3; do
             echo "Attempt $i"
             curl -fL --retry 5 --retry-delay 10 \
-              https://scan.coverity.com/download/other/linux64 \
+              "https://scan.coverity.com/download/other/linux64?token=${COVERITY_SCAN_TOKEN}&project=${GITHUB_REPOSITORY}" \
               -o coverity.tgz && break
             sleep 10
           done
+
           tar -xzf coverity.tgz -C coverity --strip 1
 
       - name: Run Coverity analysis
-        env:
-          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
           ./coverity/bin/cov-build --dir cov-int --no-command
           ./coverity/bin/cov-analyze --dir cov-int --all
@@ -46,4 +48,4 @@ jobs:
             --form file=@cov-int.tgz \
             --form version="$(git rev-parse HEAD)" \
             --form description="GitHub Actions build" \
-            https://scan.coverity.com/builds?project=Havorr/DAO_APP
+            "https://scan.coverity.com/builds?project=${GITHUB_REPOSITORY}"
