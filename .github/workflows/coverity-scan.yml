@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Jeśli Coverity Scan ma projekt jako owner/repo, ustaw to tak:
+      # Jeśli Coverity Scan ma projekt jako owner/repo, ustaw:
       # COVERITY_PROJECT: ${{ github.repository }}
       COVERITY_PROJECT: DAO_APP
 
@@ -33,7 +33,7 @@ jobs:
             echo "No requirements.txt found - skipping pip install."
           fi
 
-      - name: Download Coverity Tool (Linux 64-bit)
+      - name: Download Coverity Tool (Linux 64-bit) to RUNNER_TEMP
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
@@ -46,28 +46,30 @@ jobs:
             https://scan.coverity.com/download/linux64 \
             -o coverity-tool.tgz
 
-          mkdir -p coverity
-          tar -xzf coverity-tool.tgz -C coverity --strip 1
+          mkdir -p "${RUNNER_TEMP}/coverity"
+          tar -xzf coverity-tool.tgz -C "${RUNNER_TEMP}/coverity" --strip 1
 
           echo "Coverity tool downloaded (first entries):"
-          ls -la coverity/bin | sed -n '1,50p'
+          ls -la "${RUNNER_TEMP}/coverity/bin" | sed -n '1,50p'
 
-
-      - name: Run Coverity capture (Python)
+      - name: Capture sources (filesystem capture for Python)
         run: |
           set -euo pipefail
-          export PATH="${GITHUB_WORKSPACE}/coverity/bin:$PATH"
+          export PATH="${RUNNER_TEMP}/coverity/bin:$PATH"
 
           rm -rf cov-int
 
-          # Kompiluj repo, ale ignoruj foldery z narzędziami Coverity i artefakty
-          cov-build --dir cov-int python -m compileall -q \
-            -x '(^|/)(coverity|cov-int|\.git|\.venv|venv|__pycache__|dist|build)(/|$)' \
-            .
+          # Filesystem capture: łapie źródła (np. .py) bez "buildowania"
+          # UWAGA: capture robimy z katalogu repo, ale narzędzia Coverity są w RUNNER_TEMP,
+          # więc nie wpadną do skanowania.
+          cov-build --dir cov-int --fs-capture-search . true
+
+          # Debug: pokaż, czy coś w ogóle zostało złapane
+          echo "Captured files count:"
+          find cov-int -maxdepth 3 -type f | wc -l || true
 
           tar -czf coverity-results.tgz cov-int
           ls -lah coverity-results.tgz
-
 
       - name: Upload to Coverity Scan
         env:
@@ -76,7 +78,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # URL-encode nazwy projektu (ważne jeśli np. owner/repo)
           PROJECT_ENC="$(python -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))')"
 
           echo "Uploading to Coverity Scan"
