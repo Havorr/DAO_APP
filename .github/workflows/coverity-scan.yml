@@ -24,3 +24,4 @@ jobs:
           email: "${{ secrets.COVERITY_SCAN_EMAIL }}"
           build_language: "other"
           command: "true"
+          force_download: true
