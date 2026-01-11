@@ -1,94 +1,94 @@
-name: Coverity Scan (CMake C++)
+name: Coverity Scan (Python) - DAO_APP
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   coverity:
     runs-on: ubuntu-latest
 
     env:
-      PROJECT_DIR: A-hello-cmake
+      # Ustaw nazwę projektu taką, jaką masz w Coverity Scan.
+      # Jeśli Coverity Scan ma projekt w formie owner/repo, ustaw:
+      # COVERITY_PROJECT: ${{ github.repository }}
       COVERITY_PROJECT: DAO_APP
-      BUILD_VERSION: "1.0.${{ github.run_number }}"
-      BUILD_DESCRIPTION: "GitHub Actions Coverity Scan"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake curl tar gzip
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Download Coverity Analysis Tool
+      - name: Install dependencies (if requirements.txt exists)
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt found - skipping pip install."
+          fi
+
+      - name: Download Coverity Tool (Linux 64-bit)
         env:
           COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
         run: |
           set -euo pipefail
 
-          if [ -z "${COVERITY_SCAN_TOKEN:-}" ]; then
-            echo "ERROR: COVERITY_SCAN_TOKEN is empty. Check repo secrets or workflow context."
-            exit 1
-          fi
-
           echo "Downloading Coverity tool for project: ${COVERITY_PROJECT}"
-
-          curl -fL -X POST \
-            --data-urlencode "token=${COVERITY_SCAN_TOKEN}" \
-            --data-urlencode "project=${COVERITY_PROJECT}" \
+          curl -fL \
+            -X POST \
+            --data "token=${COVERITY_SCAN_TOKEN}&project=${COVERITY_PROJECT}" \
             https://scan.coverity.com/download/linux64 \
-            -o coverity.tgz
+            -o coverity-tool.tgz
 
           mkdir -p coverity
-          tar -xzf coverity.tgz -C coverity --strip 1
-          ls -la coverity/bin
+          tar -xzf coverity-tool.tgz -C coverity --strip 1
 
-      - name: Build with Coverity (capture)
+          echo "Coverity tool downloaded:"
+          ls -la coverity/bin | head -n 50
+
+      - name: Run Coverity capture (Python)
         run: |
           set -euo pipefail
-          cd "${PROJECT_DIR}"
-          mkdir -p build
-          cd build
+          export PATH="${GITHUB_WORKSPACE}/coverity/bin:$PATH"
 
-          ../../coverity/bin/cov-build --dir cov-int cmake ..
-          ../../coverity/bin/cov-build --dir cov-int make -j"$(nproc)"
+          # W projektach Pythona nie ma klasycznego "build".
+          # Najprostsze sensowne "capture" to kompilacja bytecode całego repo.
+          rm -rf cov-int
+          cov-build --dir cov-int python -m compileall -q .
 
-          test -d cov-int
-          echo "cov-int created OK."
+          echo "cov-int size:"
+          du -sh cov-int || true
 
-      - name: Pack results (cov-int)
-        run: |
-          set -euo pipefail
-          cd "${PROJECT_DIR}/build"
-          tar -czf cov-int.tgz cov-int
-          ls -lh cov-int.tgz
+          tar -czf coverity-results.tgz cov-int
 
-      - name: Uploading to Coverity Scan
+      - name: Upload to Coverity Scan
         env:
-        COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-        COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
-        COVERITY_PROJECT: DAO_APP
-        RESULT_TGZ: ${{ github.workspace }}/coverity-results.tgz
+          COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
         run: |
           set -euo pipefail
 
-        # URL-encode nazwy projektu (ważne, jeśli jest np. owner/repo)
-           PROJECT_ENC=$(python - <<'PY'
-          import os, urllib.parse
-        print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))
-        PY
-    )
+          # URL-encode nazwy projektu (ważne, jeśli jest owner/repo)
+          PROJECT_ENC=$(python - <<'PY'
+import os, urllib.parse
+print(urllib.parse.quote(os.environ["COVERITY_PROJECT"], safe=""))
+PY
+          )
 
-    curl -fLsS \
-      --form token="${COVERITY_SCAN_TOKEN}" \
-      --form email="${COVERITY_SCAN_EMAIL}" \
-      --form file=@"${RESULT_TGZ}" \
-      --form version="${GITHUB_SHA}" \
-      --form description="GitHub Actions build ${GITHUB_RUN_NUMBER}" \
-      "https://scan.coverity.com/builds?project=${PROJECT_ENC}"
+          echo "Uploading to Coverity Scan"
+          echo "Project: ${COVERITY_PROJECT}"
 
-
+          curl -fLsS \
+            --form token="${COVERITY_SCAN_TOKEN}" \
+            --form email="${COVERITY_SCAN_EMAIL}" \
+            --form file=@"coverity-results.tgz" \
+            --form version="${GITHUB_SHA}" \
+            --form description="GitHub Actions build ${GITHUB_RUN_NUMBER}" \
+            "https://scan.coverity.com/builds?project=${PROJECT_ENC}"
