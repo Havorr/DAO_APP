@@ -36,24 +36,22 @@ jobs:
 
           tar -xzf coverity.tgz -C coverity --strip 1
 
-      - name: Run Coverity capture
+      - name: Run Coverity build (Python)
         run: |
           set -euo pipefail
 
           rm -rf cov-int
-          mkdir -p cov-int
 
-          # Capture plików .py do cov-int (zbuduje wymagane metadane)
-          ./coverity/bin/cov-internal-capture-files \
+          # Coverity MUST wrap a command
+          ./coverity/bin/cov-build \
             --dir cov-int \
-            --source-dir Aplikacja \
-            --include-regex '.*\.py$'
+            python -m compileall Aplikacja
 
-          echo "=== cov-int files (check) ==="
-          find cov-int -maxdepth 3 -type f | head -n 200
+          echo "=== cov-int check ==="
+          ls -la cov-int
+          ls -la cov-int | grep build-log || true
 
           tar czf cov-int.tgz cov-int
-
           
       - name: Submit to Coverity Scan
         run: |
